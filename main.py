@@ -45,11 +45,11 @@ def main():
     
 
     # display(measurements, 0.5)
-    agent = Agent(initial_pos=(0, 0), velocity=(1, 1), acceleration=(1, 1), F=F,H=H,Q=Z, p_mode=0.06)
+    agent = Agent(initial_pos=(0, 0), velocity=(1, 1), acceleration=(1, 1), F=F,H=H,Q=Z, p_mode=0.1)
     _ = agent.generate_trajectory(T=100)
     mes = agent.get_measurements()
 
-    imm = IMM(F, H, Q, R, initial_state=[0, 0, 0, 0],p_mode=0.06, measurements=mes,MIXING=True)
+    imm = IMM(F, H, Q, R, initial_state=[0, 0, 0, 0],p_mode=0.1, measurements=mes,MIXING=True)
     imm.run()
     imm.plot_results()
 

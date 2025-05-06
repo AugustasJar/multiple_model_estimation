@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 from kalman import KalmanFilter
-
+from scipy.stats import multivariate_normal
 class IMM:
     def __init__(self, F_list, H_list, Q_list, R_list, initial_state,p_mode, measurements, MIXING=True):
         """
@@ -48,6 +48,7 @@ class IMM:
         """
         Run the IMM algorithm by applying all Kalman filters to the measurements.
         """
+
         for z in self.measurements:
             
             
@@ -75,11 +76,22 @@ class IMM:
                     #update the filter with the mixed state and covariance
                     self.filters[m].x = x
                     self.filters[m].P = P
-                    self.mu_history.append(self.mu.copy())
-            
-            for kf in self.filters:
-                kf.predict()
-                kf.update(z)
+                    
+            likelihoods = np.zeros((self.num_filters,1))  # Initialize likelihoods for each filter
+            for j in range(self.num_filters):
+                self.filters[j].predict()
+                self.filters[j].update(z)
+                likelihoods[j] = multivariate_normal.pdf(self.filters[j].y.flatten(),cov=self.filters[j].S,allow_singular=True) # Set allow_singular based on needs
+                likelihoods[j] = max(likelihoods[j], 1e-9) # Floor likelihood
+
+            num = np.multiply(Z ,likelihoods.T).flatten()
+            denom = np.sum(Z * likelihoods)
+            self.mu = (num) / denom
+            self.mu_history.append(self.mu.copy())
+            #update states and covariances
+            for i in range(self.num_filters):
+                self.filters[i].x = self.filters[i].x 
+                self.filters[i].P = self.filters[i].P 
 
     def get_filtered_history(self):
         """
@@ -135,7 +147,7 @@ class IMM:
         plt.figure(figsize=(10, 6))
         for i in range(mu_history.shape[1]):
             plt.plot(time_steps, mu_history[:, i], label=f'Mode {i + 1}')
-        
+            
         plt.title('Mode Probabilities Over Time')
         plt.xlabel('Time Step')
         plt.ylabel('Mode Probability')

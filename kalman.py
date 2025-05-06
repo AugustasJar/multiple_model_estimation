@@ -22,6 +22,8 @@ class KalmanFilter:
         self.x = initial_state
         self.state_history = []  # Store state history for plotting
         self.cov_history = []    # Store covariance history for plotting
+        self.y = np.zeros((self.H.shape[0], 1))
+        self.S = np.zeros((self.H.shape[0], self.H.shape[0]))
 
     def predict(self):
         """
@@ -43,10 +45,10 @@ class KalmanFilter:
         # Compute the Kalman Gain
         S = np.dot(np.dot(self.H, self.P), self.H.T) + self.R
         K = np.dot(np.dot(self.P, self.H.T), np.linalg.inv(S))  
-
+        self.S = np.linalg.inv(S)
         # Update the state estimate
-        y = z - np.dot(self.H, self.x)
-        self.x = self.x + np.dot(K, y)
+        self.y = z - np.dot(self.H, self.x)
+        self.x = self.x + np.dot(K, self.y)
 
         # Update the state covariance
         I = np.eye(self.P.shape[0])
