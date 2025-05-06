@@ -21,7 +21,7 @@ class Agent:
         
     def update_mode(self):
         """Update the mode probabilistically based on p_mode."""
-        print('mode', self.mode)
+        # print('mode', self.mode)
         if random.random() < self.p_mode:
             new_mode = random.randint(0, self.modes)
             if new_mode != self.mode:

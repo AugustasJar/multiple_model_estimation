@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 class KalmanFilter:
     def __init__(self, F, P, H, R, Q, initial_state):
@@ -19,6 +20,8 @@ class KalmanFilter:
         self.R = R
         self.Q = Q
         self.x = initial_state
+        self.state_history = []  # Store state history for plotting
+        self.cov_history = []    # Store covariance history for plotting
 
     def predict(self):
         """
@@ -48,4 +51,34 @@ class KalmanFilter:
         # Update the state covariance
         I = np.eye(self.P.shape[0])
         self.P = np.dot(I - np.dot(K, self.H), self.P)
+        self.state_history.append(self.x.copy())  # Store state history
+        self.cov_history.append(self.P.copy())    # Store covariance history
+
+    def get_state_his(self):
+        return np.array(self.state_history.copy())
     
+    def plot(self):
+        positions = self.state_history
+        covariance = self.cov_history
+        positions = np.array(positions)[:, :2]
+        plt.figure(figsize=(10, 5))
+        plt.subplot(1, 2, 1)
+        plt.plot(positions[:, 0], positions[:, 1], label="Predicted Trajectory")
+        plt.title("Predicted Trajectory")
+        plt.xlabel("X Position")
+        plt.ylabel("Y Position")
+        plt.legend()
+        plt.grid()
+
+        # Plot covariance (trace of covariance matrix as a measure of uncertainty)
+        cov_trace = [np.trace(cov) for cov in covariance]
+        plt.subplot(1, 2, 2)
+        plt.plot(range(len(cov_trace)), cov_trace, label="Covariance Trace")
+        plt.title("Covariance Trace Over Time")
+        plt.xlabel("Time Step")
+        plt.ylabel("Trace of Covariance")
+        plt.legend()
+        plt.grid()
+
+        plt.tight_layout()
+        plt.show()

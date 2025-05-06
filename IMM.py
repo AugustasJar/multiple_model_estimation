@@ -5,7 +5,7 @@ import matplotlib.animation as animation
 from kalman import KalmanFilter
 
 class IMM:
-    def __init__(self, F_list, H_list, Q_list, R_list, initial_state, measurements):
+    def __init__(self, F_list, H_list, Q_list, R_list, initial_state,p_mode, measurements, MIXING=True):
         """
         Initialize the Interacting Multiple Model (IMM) class.
 
@@ -17,29 +17,69 @@ class IMM:
         - initial_state: Initial state vector (shared across all filters).
         - measurements: List of measurement vectors.
         """
+        self.MIXING = MIXING
         self.filters = []
         self.measurements = measurements
-        self.filtered_history = []
-        self.cov = []
+        self.state_dim = F_list[0].shape[0]  # State dimension (assumed to be the same for all filters)
+        self.num_filters = len(F_list)  # Number of Kalman filters
+        self.mu = np.zeros((self.num_filters,1))
+        self.P = np.zeros((self.state_dim, self.state_dim))  # Transition probability matrix
+        self.mu_history = []
         # Create N Kalman filters
         for F, H, Q, R in zip(F_list, H_list, Q_list, R_list):
             P = np.eye(F.shape[0])  # Initialize state covariance as identity matrix
-            self.filters.append(KalmanFilter(F, P, H, R, Q, initial_state))
-        print("modes ",len(self.filters))
+            self.filters.append(KalmanFilter(F, P, H, R, Q, np.array(initial_state)))
+
+        
+        # initialize mode probabilities
+        mu = [1/len(self.filters)] * len(self.filters)  # Equal probability for each mode
+        self.mu = np.array(mu)
+        # initialize transition probabilities
+        P = np.zeros((len(self.filters), len(self.filters)))
+        for i in range(len(self.filters)):
+            for j in range(len(self.filters)):
+                if i == j:
+                    P[i][j] = 1-p_mode
+                else:
+                    P[i][j] = p_mode / (len(self.filters) - 1)
+        self.P = np.array(P)
+
     def run(self):
         """
         Run the IMM algorithm by applying all Kalman filters to the measurements.
         """
         for z in self.measurements:
-            filtered_states = []
-            cov = []
+            
+            
+            # predict model probabilities
+            if self.MIXING:
+                Z = self.P @ self.mu
+                omega = np.zeros((self.num_filters, self.num_filters))
+
+                #calculated mixing coefficient
+                for i in range(self.num_filters):
+                    for j in range(self.num_filters):
+                        omega[i, j] = (self.P[i, j] * self.mu[i]) / Z[j]
+
+                # mix model states and covariances
+                for m in range(self.num_filters):
+                    x = np.zeros((4,1))
+                    P = np.zeros((4,4))
+                    #mix the state
+                    for i in range(self.num_filters):
+                        x = omega[i, m] * self.filters[i].x
+                    #mix the covariance
+                    for i in range(self.num_filters):
+                        x_diff = self.filters[i].x - x
+                        P += omega[i, j] * (self.filters[i].P + np.outer(x_diff, x_diff))
+                    #update the filter with the mixed state and covariance
+                    self.filters[m].x = x
+                    self.filters[m].P = P
+                    self.mu_history.append(self.mu.copy())
+            
             for kf in self.filters:
                 kf.predict()
                 kf.update(z)
-                filtered_states.append(kf.x)
-                cov.append(np.trace(kf.P))  # Store the trace of the covariance matrix
-            self.cov.append(cov)
-            self.filtered_history.append(filtered_states)
 
     def get_filtered_history(self):
         """
@@ -69,10 +109,9 @@ class IMM:
 
         # Scatter plot of measurements and line graphs of filtered states
         axes[0].scatter(measurements[:, 0], measurements[:, 1], c='blue', label='Measurements', marker='.', alpha=0.6)
-        filtered_history = np.array(self.filtered_history)  # Convert to numpy array for easier indexing
         num_filters = len(self.filters)
         for i in range(num_filters):
-            filter_states = filtered_history[:, i, :2]  # Extract x, y coordinates for filter i
+            filter_states = self.filters[i].get_state_his()[:, :2]  # Get the first two dimensions (x, y) of the state history
             axes[0].plot(filter_states[:, 0], filter_states[:, 1], label=f'Filter {i + 1}')
         axes[0].set_title('Scatter Plot of Measurements and Filtered States')
         axes[0].set_xlabel('X Coordinate')
@@ -82,13 +121,26 @@ class IMM:
 
         # Subplot for absolute covariances
         for i in range(num_filters):
-            axes[1].plot(self.cov[i], label=f'Filter {i + 1}')
+            cov_trace = [np.trace(cov) for cov in self.filters[i].cov_history]
+            axes[1].plot(cov_trace, label=f'Filter {i + 1}')
         axes[1].set_title('Absolute Covariances of Filters')
         axes[1].set_xlabel('Time Step')
         axes[1].set_ylabel('Absolute Covariance')
         axes[1].legend()
         axes[1].grid(True)
 
+
+        mu_history = np.array(self.mu_history)  # Convert to NumPy array for easier manipulation
+        time_steps = range(len(mu_history))  # Time steps
+        plt.figure(figsize=(10, 6))
+        for i in range(mu_history.shape[1]):
+            plt.plot(time_steps, mu_history[:, i], label=f'Mode {i + 1}')
+        
+        plt.title('Mode Probabilities Over Time')
+        plt.xlabel('Time Step')
+        plt.ylabel('Mode Probability')
+        plt.legend()
+        plt.grid(True)
         plt.tight_layout()
         plt.show()
 

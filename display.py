@@ -62,26 +62,3 @@ def display(mes, modes, t_delay):
     plt.tight_layout()
     plt.show()
 
-def plot(predictions, covariance):
-        positions = predictions[:, :2]
-        plt.figure(figsize=(10, 5))
-        plt.subplot(1, 2, 1)
-        plt.plot(positions[:, 0], positions[:, 1], label="Predicted Trajectory")
-        plt.title("Predicted Trajectory")
-        plt.xlabel("X Position")
-        plt.ylabel("Y Position")
-        plt.legend()
-        plt.grid()
-
-        # Plot covariance (trace of covariance matrix as a measure of uncertainty)
-        cov_trace = [np.trace(cov) for cov in covariance]
-        plt.subplot(1, 2, 2)
-        plt.plot(range(len(cov_trace)), cov_trace, label="Covariance Trace")
-        plt.title("Covariance Trace Over Time")
-        plt.xlabel("Time Step")
-        plt.ylabel("Trace of Covariance")
-        plt.legend()
-        plt.grid()
-
-        plt.tight_layout()
-        plt.show()
