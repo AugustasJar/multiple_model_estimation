@@ -14,8 +14,8 @@ def main():
     F = [get_F_cv(1)]
     angular_velocities = {
             0: 0,       # Uniform motion in a straight line
-            1: 0.1,     # Constant rate turn with ω = 0.1 rad/sec
-            2: -0.1,    # Constant rate turn with ω = -0.1 rad/sec
+            1: 0.3,     # Constant rate turn with ω = 0.1 rad/sec
+            2: -0.3,    # Constant rate turn with ω = -0.1 rad/sec
             3: 0.05,    # Constant rate turn with ω = 0.05 rad/sec
             4: -0.05    # Constant rate turn with ω = -0.05 rad/sec
         }
@@ -41,15 +41,15 @@ def main():
     Q = [Qn, Qn, Qn, Qn,Qn]
     Rn = 2 * np.eye(4)
     R = [Rn, Rn,Rn, Rn,Rn]
-
+    p_mode = 0.04
     
 
     # display(measurements, 0.5)
-    agent = Agent(initial_pos=(0, 0), velocity=(1, 1), acceleration=(1, 1), F=F,H=H,Q=Z, p_mode=0.1)
-    _ = agent.generate_trajectory(T=100)
+    agent = Agent(initial_pos=(0, 0), velocity=(1, 1), angular_velocities=angular_velocities, F=F,H=H,Q=Z, p_mode=p_mode)
+    _ = agent.generate_trajectory(T=500)
     mes = agent.get_measurements()
-
-    imm = IMM(F, H, Q, R, initial_state=[0, 0, 0, 0],p_mode=0.1, measurements=mes,MIXING=True)
+    true_mode = agent.get_mode_history()
+    imm = IMM(F, H, Q, R, initial_state=[0, 0, 0, 0],p_mode=p_mode,true_mode=true_mode, measurements=mes,MIXING=True)
     imm.run()
     imm.plot_results()
 

@@ -2,7 +2,7 @@ import numpy as np
 import random
 
 class Agent:
-    def __init__(self, initial_pos=(0,0), velocity=(0.1,0.2), acceleration=(0,0), F=None,H =None, Q=None, p_mode=None):
+    def __init__(self, initial_pos=(0,0), velocity=(0.1,0.2), angular_velocities=None, F=None,H =None, Q=None, p_mode=None):
         self.state = np.array([initial_pos[0], initial_pos[1], velocity[0], velocity[1]])
         self.state_history = []
         self.measurements = []
@@ -18,16 +18,14 @@ class Agent:
         # Initialize the current mode index
         self.modes = 4
         self.mode = random.randint(0, self.modes)
+        self.angular_velocities = angular_velocities
         
     def update_mode(self):
         """Update the mode probabilistically based on p_mode."""
         # print('mode', self.mode)
         if random.random() < self.p_mode:
             new_mode = random.randint(0, self.modes)
-            if new_mode != self.mode:
-                self.mode = new_mode
-            else:
-                self.update_mode() # prevent switching to same mode
+            self.mode = new_mode
 
     def update_state(self):
         """Update the state based on the current mode."""
@@ -36,16 +34,10 @@ class Agent:
         x, y, vx, vy = self.state
 
         # Define angular velocities for the modes
-        angular_velocities = {
-            0: 0,       # Uniform motion in a straight line
-            1: 0.1,     # Constant rate turn with ω = 0.1 rad/sec
-            2: -0.1,    # Constant rate turn with ω = -0.1 rad/sec
-            3: 0.05,    # Constant rate turn with ω = 0.05 rad/sec
-            4: -0.05    # Constant rate turn with ω = -0.05 rad/sec
-        }
+       
 
         # Get the angular velocity for the current mode
-        omega = angular_velocities.get(self.mode, 0)
+        omega = self.angular_velocities.get(self.mode, 0)
 
         # Update velocity and position based on the mode
         if omega == 0:

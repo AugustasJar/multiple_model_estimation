@@ -5,7 +5,7 @@ import matplotlib.animation as animation
 from kalman import KalmanFilter
 from scipy.stats import multivariate_normal
 class IMM:
-    def __init__(self, F_list, H_list, Q_list, R_list, initial_state,p_mode, measurements, MIXING=True):
+    def __init__(self, F_list, H_list, Q_list, R_list, initial_state,p_mode,true_mode, measurements, MIXING=True):
         """
         Initialize the Interacting Multiple Model (IMM) class.
 
@@ -43,13 +43,15 @@ class IMM:
                 else:
                     P[i][j] = p_mode / (len(self.filters) - 1)
         self.P = np.array(P)
+        self.best_estimate = np.zeros((len(self.measurements),self.state_dim))  # Initialize best estimate
+        self.true_mode = true_mode
 
     def run(self):
         """
         Run the IMM algorithm by applying all Kalman filters to the measurements.
         """
 
-        for z in self.measurements:
+        for idx, z in enumerate(self.measurements):
             
             
             # predict model probabilities
@@ -68,30 +70,34 @@ class IMM:
                     P = np.zeros((4,4))
                     #mix the state
                     for i in range(self.num_filters):
-                        x = omega[i, m] * self.filters[i].x
+                        res = omega[i, m] * np.array(self.filters[i].x).reshape(-1, 1)  # Ensure column vector
+                        x += res
                     #mix the covariance
                     for i in range(self.num_filters):
-                        x_diff = self.filters[i].x - x
+                        x_diff = np.array(self.filters[i].x).reshape(-1, 1) - x  # Ensure both are column vectors
                         P += omega[i, j] * (self.filters[i].P + np.outer(x_diff, x_diff))
                     #update the filter with the mixed state and covariance
                     self.filters[m].x = x
                     self.filters[m].P = P
-                    
-            likelihoods = np.zeros((self.num_filters,1))  # Initialize likelihoods for each filter
+                
+            likelihoods = np.zeros(self.num_filters)  # Initialize likelihoods for each filter
             for j in range(self.num_filters):
                 self.filters[j].predict()
-                self.filters[j].update(z)
-                likelihoods[j] = multivariate_normal.pdf(self.filters[j].y.flatten(),cov=self.filters[j].S,allow_singular=True) # Set allow_singular based on needs
-                likelihoods[j] = max(likelihoods[j], 1e-9) # Floor likelihood
+                self.filters[j].update(np.array(z))
+                # Calculate the likelihood of the measurement given the predicted state
+                cov = self.filters[j].S  # Covariance matrix (should be 2D and square)
+                mean = np.array(self.filters[j].y).flatten()  # Ensure mean is a 1D array
+                likelihoods[j] = multivariate_normal.pdf(mean, cov=cov, allow_singular=True)  # Set allow_singular based on needs
 
-            num = np.multiply(Z ,likelihoods.T).flatten()
+            num = np.multiply(Z ,likelihoods)
             denom = np.sum(Z * likelihoods)
             self.mu = (num) / denom
             self.mu_history.append(self.mu.copy())
             #update states and covariances
             for i in range(self.num_filters):
-                self.filters[i].x = self.filters[i].x 
-                self.filters[i].P = self.filters[i].P 
+                #update best estimate
+                self.best_estimate[idx] += self.mu[i] * np.array(self.filters[i].x).flatten()
+            
 
     def get_filtered_history(self):
         """
@@ -104,6 +110,26 @@ class IMM:
     
 
     # ...existing code...
+    def plot_true_vs_estimated_mode(self, true_mode):
+        """
+        Plot the true mode versus the estimated mode with the highest probability as a line graph.
+
+        Parameters:
+        - true_mode: List of true modes at each time step.
+        """
+        estimated_modes = np.argmax(self.mu_history, axis=1)  # Get the index of the highest probability mode at each step
+        time_steps = range(len(true_mode))  # Time steps
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(time_steps, true_mode, label='True Mode', linestyle='-', alpha=0.7)
+        plt.plot(time_steps, estimated_modes, label='Estimated Mode', linestyle='--', alpha=0.7)
+        plt.title('True Mode vs Estimated Mode')
+        plt.xlabel('Time Step')
+        plt.ylabel('Mode')
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+
 
     def plot_results(self):
         """
@@ -122,9 +148,10 @@ class IMM:
         # Scatter plot of measurements and line graphs of filtered states
         axes[0].scatter(measurements[:, 0], measurements[:, 1], c='blue', label='Measurements', marker='.', alpha=0.6)
         num_filters = len(self.filters)
-        for i in range(num_filters):
-            filter_states = self.filters[i].get_state_his()[:, :2]  # Get the first two dimensions (x, y) of the state history
-            axes[0].plot(filter_states[:, 0], filter_states[:, 1], label=f'Filter {i + 1}')
+        # for i in range(num_filters):
+        #     filter_states = self.filters[i].get_state_his()[:, :2]  # Get the first two dimensions (x, y) of the state history
+        #     axes[0].plot(filter_states[:, 0], filter_states[:, 1], label=f'Filter {i + 1}')
+        axes[0].plot(self.best_estimate[:, 0], self.best_estimate[:, 1], label=f'best estimate')
         axes[0].set_title('Scatter Plot of Measurements and Filtered States')
         axes[0].set_xlabel('X Coordinate')
         axes[0].set_ylabel('Y Coordinate')
@@ -154,6 +181,9 @@ class IMM:
         plt.legend()
         plt.grid(True)
         plt.tight_layout()
+
+        self.plot_true_vs_estimated_mode(self.true_mode)
+
         plt.show()
 
 def get_F_cv(dt):

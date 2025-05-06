@@ -14,7 +14,7 @@ class KalmanFilter:
         - Q: Process noise covariance matrix.
         - initial_state: Initial state vector.
         """
-        self.F = F
+        self.F = F  # Ensure F is a numpy array
         self.P = P
         self.H = H
         self.R = R
@@ -22,7 +22,7 @@ class KalmanFilter:
         self.x = initial_state
         self.state_history = []  # Store state history for plotting
         self.cov_history = []    # Store covariance history for plotting
-        self.y = np.zeros((self.H.shape[0], 1))
+        self.y = np.zeros((4, 1))
         self.S = np.zeros((self.H.shape[0], self.H.shape[0]))
 
     def predict(self):
@@ -42,14 +42,15 @@ class KalmanFilter:
         Parameters:
         - z: Measurement vector.
         """
+        z = z.reshape(-1, 1)  # Reshape z to (4, 1) if it's not already
         # Compute the Kalman Gain
         S = np.dot(np.dot(self.H, self.P), self.H.T) + self.R
         K = np.dot(np.dot(self.P, self.H.T), np.linalg.inv(S))  
-        self.S = np.linalg.inv(S)
+        self.S = S
         # Update the state estimate
-        self.y = z - np.dot(self.H, self.x)
-        self.x = self.x + np.dot(K, self.y)
-
+        y = z - np.dot(self.H, self.x)  # Measurement residual
+        self.x = self.x + np.dot(K, y)
+        self.y = y
         # Update the state covariance
         I = np.eye(self.P.shape[0])
         self.P = np.dot(I - np.dot(K, self.H), self.P)
