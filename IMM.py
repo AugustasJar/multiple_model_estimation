@@ -5,99 +5,136 @@ import matplotlib.animation as animation
 from kalman import KalmanFilter
 from scipy.stats import multivariate_normal
 class IMM:
-    def __init__(self, F_list, H_list, Q_list, R_list, initial_state,p_mode,true_mode, measurements, MIXING=True):
+    def __init__(self, F_list, H_list, Q_list, R_list, initial_state, p_mode, true_mode, measurements, MIXING=True):
         """
         Initialize the Interacting Multiple Model (IMM) class.
 
         Parameters:
-        - F_list: List of state transition matrices (one for each Kalman filter).
-        - H_list: List of measurement matrices (one for each Kalman filter).
-        - Q_list: List of process noise covariance matrices (one for each Kalman filter).
-        - R_list: List of measurement noise covariance matrices (one for each Kalman filter).
-        - initial_state: Initial state vector (shared across all filters).
-        - measurements: List of measurement vectors.
+        -----------
+        F_list : list of ndarray
+            List of state transition matrices (one for each Kalman filter)
+        H_list : list of ndarray
+            List of measurement matrices (one for each Kalman filter)
+        Q_list : list of ndarray
+            List of process noise covariance matrices (one for each Kalman filter)
+        R_list : list of ndarray
+            List of measurement noise covariance matrices (one for each Kalman filter)
+        initial_state : ndarray
+            Initial state vector (shared across all filters)
+        p_mode : float
+            Probability of mode transition
+        true_mode : list
+            List of true modes for each time step
+        measurements : list of ndarray
+            List of measurement vectors
+        MIXING : bool, optional
+            Whether to perform mode mixing, defaults to True
         """
         self.MIXING = MIXING
-        self.filters = []
         self.measurements = measurements
-        self.state_dim = F_list[0].shape[0]  # State dimension (assumed to be the same for all filters)
-        self.num_filters = len(F_list)  # Number of Kalman filters
-        self.mu = np.zeros((self.num_filters,1))
-        self.P = np.zeros((self.state_dim, self.state_dim))  # Transition probability matrix
-        self.mu_history = []
-        # Create N Kalman filters
-        for F, H, Q, R in zip(F_list, H_list, Q_list, R_list):
-            P = np.eye(F.shape[0])  # Initialize state covariance as identity matrix
-            self.filters.append(KalmanFilter(F, P, H, R, Q, np.array(initial_state)))
-
-        
-        # initialize mode probabilities
-        mu = [1/len(self.filters)] * len(self.filters)  # Equal probability for each mode
-        self.mu = np.array(mu)
-        # initialize transition probabilities
-        P = np.zeros((len(self.filters), len(self.filters)))
-        for i in range(len(self.filters)):
-            for j in range(len(self.filters)):
-                if i == j:
-                    P[i][j] = 1-p_mode
-                else:
-                    P[i][j] = p_mode / (len(self.filters) - 1)
-        self.P = np.array(P)
-        self.best_estimate = np.zeros((len(self.measurements),self.state_dim))  # Initialize best estimate
+        self.state_dim = F_list[0].shape[0]
+        self.num_filters = len(F_list)
         self.true_mode = true_mode
+        
+        # Initialize filters
+        self.filters = self._initialize_filters(F_list, H_list, Q_list, R_list, initial_state)
+        
+        # Initialize mode probabilities and transition matrix
+        self.mu = np.ones(self.num_filters) / self.num_filters
+        self.P = self._initialize_transition_matrix(p_mode)
+        
+        # Initialize tracking variables
+        self.mu_history = []
+        self.best_estimate = np.zeros((len(self.measurements), self.state_dim))
+
+    def _initialize_filters(self, F_list, H_list, Q_list, R_list, initial_state):
+        """Initialize Kalman filters with given parameters."""
+        filters = []
+        for F, H, Q, R in zip(F_list, H_list, Q_list, R_list):
+            P = np.eye(F.shape[0])
+            filters.append(KalmanFilter(F, P, H, R, Q, np.array(initial_state)))
+        return filters
+
+    def _initialize_transition_matrix(self, p_mode):
+        """
+        Initialize the mode transition probability matrix.
+        
+        The transition matrix P[i,j] represents the probability of transitioning
+        from mode i to mode j. For each mode:
+        - Self-transition probability is (1 - p_mode)
+        - Transition to other modes is p_mode / (num_filters - 1)
+        
+
+        """
+        # Initialize matrix with equal transition probabilities to other modes
+        P = np.full((self.num_filters, self.num_filters), 
+                    p_mode / (self.num_filters - 1))
+        
+        # Set self-transition probabilities along diagonal
+        np.fill_diagonal(P, 1 - p_mode)
+        
+        return P
+
+    def _calculate_mixing_probabilities(self):
+        """Calculate mixing probabilities for mode interaction."""
+        Z = self.P @ self.mu
+        omega = np.zeros((self.num_filters, self.num_filters))
+        for i in range(self.num_filters):
+            for j in range(self.num_filters):
+                omega[i, j] = (self.P[i, j] * self.mu[i]) / Z[j]
+        return omega
+
+    def _mix_states_and_covariances(self, omega):
+        """Mix states and covariances based on mixing probabilities."""
+        for m in range(self.num_filters):
+            x = np.zeros((self.state_dim, 1))
+            P = np.zeros((self.state_dim, self.state_dim))
+            
+            # Mix states
+            for i in range(self.num_filters):
+                x += omega[i, m] * np.array(self.filters[i].x).reshape(-1, 1)
+            
+            # Mix covariances
+            for i in range(self.num_filters):
+                x_diff = np.array(self.filters[i].x).reshape(-1, 1) - x
+                P += omega[i, m] * (self.filters[i].P + np.outer(x_diff, x_diff))
+            
+            self.filters[m].x = x
+            self.filters[m].P = P
+
+    def _update_mode_probabilities(self, likelihoods):
+        """Update mode probabilities based on measurement likelihoods."""
+        Z = self.P @ self.mu
+        num = np.multiply(Z, likelihoods)
+        denom = np.sum(Z * likelihoods)
+        self.mu = num / denom
+        self.mu_history.append(self.mu.copy())
 
     def run(self):
-        """
-        Run the IMM algorithm by applying all Kalman filters to the measurements.
-        """
-
+        """Run the IMM algorithm by applying all Kalman filters to the measurements."""
         for idx, z in enumerate(self.measurements):
-            
-            
-            # predict model probabilities
+            # Mode mixing step
             if self.MIXING:
-                Z = self.P @ self.mu
-                omega = np.zeros((self.num_filters, self.num_filters))
-
-                #calculated mixing coefficient
-                for i in range(self.num_filters):
-                    for j in range(self.num_filters):
-                        omega[i, j] = (self.P[i, j] * self.mu[i]) / Z[j]
-
-                # mix model states and covariances
-                for m in range(self.num_filters):
-                    x = np.zeros((4,1))
-                    P = np.zeros((4,4))
-                    #mix the state
-                    for i in range(self.num_filters):
-                        res = omega[i, m] * np.array(self.filters[i].x).reshape(-1, 1)  # Ensure column vector
-                        x += res
-                    #mix the covariance
-                    for i in range(self.num_filters):
-                        x_diff = np.array(self.filters[i].x).reshape(-1, 1) - x  # Ensure both are column vectors
-                        P += omega[i, j] * (self.filters[i].P + np.outer(x_diff, x_diff))
-                    #update the filter with the mixed state and covariance
-                    self.filters[m].x = x
-                    self.filters[m].P = P
-                
-            likelihoods = np.zeros(self.num_filters)  # Initialize likelihoods for each filter
+                omega = self._calculate_mixing_probabilities()
+                self._mix_states_and_covariances(omega)
+            
+            # Filter prediction and update
+            likelihoods = np.zeros(self.num_filters)
             for j in range(self.num_filters):
                 self.filters[j].predict()
                 self.filters[j].update(np.array(z))
-                # Calculate the likelihood of the measurement given the predicted state
-                cov = self.filters[j].S  # Covariance matrix (should be 2D and square)
-                mean = np.array(self.filters[j].y).flatten()  # Ensure mean is a 1D array
-                likelihoods[j] = multivariate_normal.pdf(mean, cov=cov, allow_singular=True)  # Set allow_singular based on needs
-
-            num = np.multiply(Z ,likelihoods)
-            denom = np.sum(Z * likelihoods)
-            self.mu = (num) / denom
-            self.mu_history.append(self.mu.copy())
-            #update states and covariances
-            for i in range(self.num_filters):
-                #update best estimate
-                self.best_estimate[idx] += self.mu[i] * np.array(self.filters[i].x).flatten()
+                
+                # Calculate measurement likelihood
+                cov = self.filters[j].S
+                mean = np.array(self.filters[j].y).flatten()
+                likelihoods[j] = multivariate_normal.pdf(mean, cov=cov, allow_singular=True)
             
+            # Update mode probabilities
+            self._update_mode_probabilities(likelihoods)
+            
+            # Update best estimate
+            self.best_estimate[idx] = sum(self.mu[i] * np.array(self.filters[i].x).flatten() 
+                                        for i in range(self.num_filters))
 
     def get_filtered_history(self):
         """
