@@ -123,7 +123,7 @@ class IMM:
             for j in range(self.num_filters):
                 self.filters[j].predict()
                 self.filters[j].update(np.array(z))
-                
+                self.filters[j].save_state_cov()
                 # Calculate measurement likelihood
                 cov = self.filters[j].S
                 mean = np.array(self.filters[j].y).flatten()
@@ -146,7 +146,6 @@ class IMM:
         return self.filtered_history
     
 
-    # ...existing code...
     def plot_true_vs_estimated_mode(self, true_mode):
         """
         Plot the true mode versus the estimated mode with the highest probability as a line graph.

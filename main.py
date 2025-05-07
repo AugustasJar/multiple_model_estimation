@@ -8,6 +8,7 @@ from generate_trajectory import generate_trajectory
 from agent import Agent
 from IMM import IMM
 from IMM import get_F_cv,get_F_ct
+from GPB import GPB
 from kalman import KalmanFilter
 def main():
     
@@ -49,9 +50,13 @@ def main():
     _ = agent.generate_trajectory(T=500)
     mes = agent.get_measurements()
     true_mode = agent.get_mode_history()
-    imm = IMM(F, H, Q, R, initial_state=[0, 0, 0, 0],p_mode=p_mode,true_mode=true_mode, measurements=mes,MIXING=True)
-    imm.run()
-    imm.plot_results()
+    # imm = IMM(F, H, Q, R, initial_state=[0, 0, 0, 0],p_mode=p_mode,true_mode=true_mode, measurements=mes,MIXING=True)
+    # imm.run()
+    # imm.plot_results()
+
+    gpb = GPB(F,H,Q,R,initial_state=[0, 0, 0, 0],p_mode=p_mode,true_mode=true_mode, measurements=mes,order=2)
+    gpb.run()
+    gpb.plot_results()
 
 if __name__ == "__main__":
     main()

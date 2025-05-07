@@ -54,8 +54,12 @@ class KalmanFilter:
         # Update the state covariance
         I = np.eye(self.P.shape[0])
         self.P = np.dot(I - np.dot(K, self.H), self.P)
-        self.state_history.append(self.x.copy())  # Store state history
-        self.cov_history.append(self.P.copy())    # Store covariance history
+        
+
+    def save_state_cov(self):
+        self.state_history.append(self.x.copy())
+        self.cov_history.append(self.P.copy())
+
 
     def get_state_his(self):
         return np.array(self.state_history.copy())
