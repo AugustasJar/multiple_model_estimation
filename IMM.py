@@ -5,7 +5,7 @@ import matplotlib.animation as animation
 from kalman import KalmanFilter
 from scipy.stats import multivariate_normal
 class IMM:
-    def __init__(self, F_list, H_list, Q_list, R_list, initial_state, p_mode, true_mode, measurements, MIXING=True):
+    def __init__(self, F_list, H_list, Q_list, R_list, initial_state, p_mode, true_mode,true_trajectory, measurements, MIXING=True):
         """
         Initialize the Interacting Multiple Model (IMM) class.
 
@@ -38,7 +38,6 @@ class IMM:
         
         # Initialize filters
         self.filters = self._initialize_filters(F_list, H_list, Q_list, R_list, initial_state)
-        
         # Initialize mode probabilities and transition matrix
         self.mu = np.ones(self.num_filters) / self.num_filters
         self.P = self._initialize_transition_matrix(p_mode)
@@ -46,6 +45,7 @@ class IMM:
         # Initialize tracking variables
         self.mu_history = []
         self.best_estimate = np.zeros((len(self.measurements), self.state_dim))
+        self.true_trajectory = true_trajectory
 
     def _initialize_filters(self, F_list, H_list, Q_list, R_list, initial_state):
         """Initialize Kalman filters with given parameters."""
@@ -187,7 +187,8 @@ class IMM:
         # for i in range(num_filters):
         #     filter_states = self.filters[i].get_state_his()[:, :2]  # Get the first two dimensions (x, y) of the state history
         #     axes[0].plot(filter_states[:, 0], filter_states[:, 1], label=f'Filter {i + 1}')
-        axes[0].plot(self.best_estimate[:, 0], self.best_estimate[:, 1], label=f'best estimate')
+        axes[0].plot(self.best_estimate[:, 0], self.best_estimate[:, 1], label=f'best estimate',color='red')
+        axes[0].plot(self.true_trajectory[:, 0], self.true_trajectory[:, 1], label=f'true trajectory',color='green')
         axes[0].set_title('Scatter Plot of Measurements and Filtered States')
         axes[0].set_xlabel('X Coordinate')
         axes[0].set_ylabel('Y Coordinate')
@@ -220,7 +221,7 @@ class IMM:
 
         self.plot_true_vs_estimated_mode(self.true_mode)
 
-        plt.show()
+        # plt.show()
 
 def get_F_cv(dt):
   """

@@ -65,6 +65,8 @@ class Agent:
 
         self.measurements.append(measurement.copy())
         self.mode_history.append(self.mode)
+
+        
     def get_state_history(self):
         return self.state_history.copy()
     
