@@ -22,8 +22,41 @@ class KalmanFilter:
         self.x = initial_state
         self.state_history = []  # Store state history for plotting
         self.cov_history = []    # Store covariance history for plotting
-        self.y = np.zeros((4, 1))
-        self.S = np.zeros((self.H.shape[0], self.H.shape[0]))
+        self.y = None  # Innovation
+        self.S = None  # Innovation covariance
+
+    def copy(self):
+        """Shallow copy of the KalmanFilter object."""
+        new_filter = KalmanFilter(
+            F=self.F.copy(),
+            P=self.P.copy(),
+            H=self.H.copy(),
+            R=self.R.copy(),
+            Q=self.Q.copy(),
+            initial_state=self.x.copy()
+        )
+        if self.y is not None:
+            new_filter.y = self.y.copy()
+        if self.S is not None:
+            new_filter.S = self.S.copy()
+        return new_filter
+
+    def __deepcopy__(self, memo):
+        """Deep copy of the KalmanFilter object."""
+        import copy
+        new_filter = KalmanFilter(
+            F=copy.deepcopy(self.F, memo),
+            P=copy.deepcopy(self.P, memo),
+            H=copy.deepcopy(self.H, memo),
+            R=copy.deepcopy(self.R, memo),
+            Q=copy.deepcopy(self.Q, memo),
+            x=copy.deepcopy(self.x, memo)
+        )
+        if self.y is not None:
+            new_filter.y = copy.deepcopy(self.y, memo)
+        if self.S is not None:
+            new_filter.S = copy.deepcopy(self.S, memo)
+        return new_filter
 
     def predict(self):
         """
@@ -42,13 +75,14 @@ class KalmanFilter:
         Parameters:
         - z: Measurement vector.
         """
-        z = z.reshape(-1, 1)  # Reshape z to (4, 1) if it's not already
+        z = z.reshape(self.H.shape[0], 1)  # Reshape z to (4, 1) if it's not already
+        self.x = self.x.reshape(self.H.shape[0], 1)
         # Compute the Kalman Gain
         S = np.dot(np.dot(self.H, self.P), self.H.T) + self.R
         K = np.dot(np.dot(self.P, self.H.T), np.linalg.inv(S))  
         self.S = S
         # Update the state estimate
-        y = z - np.dot(self.H, self.x)  # Measurement residual
+        y = z - self.H @ self.x  # Measurement residual
         self.x = self.x + np.dot(K, y)
         self.y = y
         # Update the state covariance

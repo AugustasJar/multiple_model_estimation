@@ -5,7 +5,7 @@ from kalman import KalmanFilter
 
 class M3H:
     def __init__(self, F_list, H_list, Q_list, R_list, initial_state,
-                 p_transition, measurements, epsilon, L_merge, l_max,
+                 P_transition, measurements, epsilon, L_merge, l_max,
                  initial_mode_probabilities=None, true_trajectory=None, true_mode=None):
         """
         Initialize the Multiple Model Multiple Hypothesis (M3H) Filter.
@@ -51,7 +51,7 @@ class M3H:
         self.Q_list = Q_list
         self.R_list = R_list
 
-        self.P_transition = self._initialize_transition_matrix(p_transition)
+        self.P_transition = P_transition
         self.epsilon = epsilon
         self.L_merge = L_merge
         self.l_max = l_max
