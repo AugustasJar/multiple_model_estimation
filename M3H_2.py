@@ -134,9 +134,7 @@ class M3H(IMM):
     def _prune_hypotheses(self):
         #remove hypotheses with likelihood less than epsilon
         threshold = self.epsilon * sum(hypothesis['likelihood'] for hypothesis in self.hypotheses)
-        for hypothesesis in self.hypotheses:
-            if hypothesesis['likelihood'] < threshold and len(hypothesesis['mode_history']) > 1:
-                self.hypotheses.remove(hypothesesis)
+        self.hypotheses = [h for h in self.hypotheses if h['likelihood'] >= threshold]
         #keep L_max hypotheses
         #sort hypotheses by likelihood
         self.hypotheses.sort(key=lambda x: x['likelihood'], reverse=True)
@@ -291,13 +289,19 @@ class M3H(IMM):
         fig_idx += 1
         time_steps = range(len(self.true_mode))  # Time steps
 
+        # Calculate norm of merged covariance and normalize to max mode value
+        cov_norms = np.array([np.linalg.norm(cov) for cov in self.merged_covariance])
+        max_mode = max(np.max(self.true_mode), np.max(self.most_likely_mode))
+        normalized_cov_norms = cov_norms / np.max(cov_norms) * max_mode
+
         ax4.plot(time_steps, self.true_mode, label='True Mode', linestyle='-', alpha=0.7)
         ax4.plot(time_steps, self.most_likely_mode, label='Estimated Mode', linestyle='--', alpha=0.7)
+        ax4.plot(time_steps, normalized_cov_norms, label='Normalized Covariance Norm', linestyle='-', alpha=0.5,color='red')
         ax4.set_title('True Mode vs Estimated Mode')
         ax4.set_xlabel('Time Step')
         ax4.set_ylabel('Mode')
         ax4.legend()
         ax4.grid(True)
-
+        
         plt.tight_layout()
         plt.show()

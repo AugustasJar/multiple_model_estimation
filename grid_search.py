@@ -13,9 +13,9 @@ def calculate_mode_accuracy(estimated_modes, true_modes):
 
 def grid_search(F, H, Q, R, P_transition, measurements, true_trajectory, true_mode):
     # Define parameter ranges
-    epsilon_range = [0.0001, 0.001, 0.01, 0.1]
-    L_merge_range = [1, 2, 3, 4]
-    l_max_range = [10, 25, 50, 100]
+    epsilon_range = np.logspace(-3, -1, 20)
+    L_merge_range = [1, 2, 3]
+    l_max_range = [10]
     
     # Store results
     results = []

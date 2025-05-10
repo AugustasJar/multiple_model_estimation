@@ -47,8 +47,8 @@ def main():
     
     Z = np.array([[1, 0, 0, 0],
                     [0, 1, 0, 0],
-                    [0, 0, 0.1, 0],
-                    [0, 0, 0, 0.1],])
+                    [0, 0, 0.01, 0],
+                    [0, 0, 0, 0.01],])
     
     Q = [Qn, Qn, Qn, Qn,Qn]
     Rn = 1 * np.eye(4)
@@ -62,7 +62,7 @@ def main():
 
     # display(measurements, 0.5)
     agent = Agent(initial_pos=(0, 0), velocity=(1, 1), angular_velocities=angular_velocities_true, F=F,H=H,Q=Z, p_mode=p_mode)
-    true_trajectory = agent.generate_trajectory(T=200)
+    true_trajectory = agent.generate_trajectory(T=500)
     mes = agent.get_measurements()
     true_mode = agent.get_mode_history()
 
@@ -79,8 +79,8 @@ def main():
                        initial_state=np.array([0, 0, 0, 0]), 
                        P_transition=P_transition, 
                        measurements=mes,
-                       epsilon=0.002, 
-                       L_merge=2, 
+                       epsilon=0.004, 
+                       L_merge=4, 
                        l_max=25,
                        initial_mode_probabilities=np.array([0.2, 0.2, 0.2, 0.2, 0.2]),
                        true_trajectory=true_trajectory, # For plotting
@@ -92,7 +92,7 @@ def main():
     plt.show()
     # results = grid_search(F, H, Q, R, P_transition, mes, true_trajectory, true_mode)
     
-    # Analyze and print results
+    # # Analyze and print results
     # analyze_results(results) 
 
 if __name__ == "__main__":
