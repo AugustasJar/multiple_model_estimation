@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.stats import multivariate_normal
+from matplotlib.patches import Ellipse
 
 from IMM import IMM
 from kalman import KalmanFilter
@@ -32,6 +33,7 @@ class M3H(IMM):
         self.true_trajectory = true_trajectory
         self.most_likely_mode = np.zeros((len(measurements)))
         self.true_mode = true_mode
+        self.merged_covariance = np.zeros((len(measurements),self.state_dim,self.state_dim))
 
     def _init_filters(self):
         filters = []
@@ -85,54 +87,49 @@ class M3H(IMM):
 
 
     def _merge_hypotheses(self):
-    """
-    Merge hypotheses that share the same recent mode history.
-    This method groups hypotheses by their 'mode_history'. For each group,
-    if there are multiple hypotheses, their likelihoods are summed, and a
-    single merged hypothesis is created. The filter for the merged hypothesis
-    is a copy of the filter from the first hypothesis in that group.
-    """
-    if not self.hypotheses or len(self.hypotheses) < 2:
-        # No need to merge if there are 0 or 1 hypotheses.
-        # The L_merge parameter's direct role here is implicitly handled by
-        # how mode_history is constructed in _expand_hypotheses.
-        return
+        """
+        Merge hypotheses that share the same recent mode history.
+        This method groups hypotheses by their 'mode_history'. For each group,
+        if there are multiple hypotheses, their likelihoods are summed, and a
+        single merged hypothesis is created. The filter for the merged hypothesis
+        is a copy of the filter from the first hypothesis in that group.
+        """
+        if not self.hypotheses or len(self.hypotheses) < 2:
+            # No need to merge if there are 0 or 1 hypotheses.
+            # The L_merge parameter's direct role here is implicitly handled by
+            # how mode_history is constructed in _expand_hypotheses.
+            return
 
-    # Group hypotheses by their mode_history.
-    # The mode_history is expected to be managed by _expand_hypotheses
-    # to represent the relevant sequence for merging (e.g., fixed length L_merge).
-    groups = {}
-    for hyp in self.hypotheses:
-        key = tuple(hyp['mode_history'])  # Use the tuple of mode_history as the key
-        if key not in groups:
-            groups[key] = []
-        groups[key].append(hyp)
+        # Group hypotheses by their mode_history.
+        # The mode_history is expected to be managed by _expand_hypotheses
+        # to represent the relevant sequence for merging (e.g., fixed length L_merge).
+        groups = {}
+        for hyp in self.hypotheses:
+            key = tuple(hyp['mode_history'])  # Use the tuple of mode_history as the key
+            if key not in groups:
+                groups[key] = []
+            groups[key].append(hyp)
 
-    merged_list = []
-    for key, group_hypotheses in groups.items():
-        if len(group_hypotheses) == 1:
-            # If only one hypothesis in the group, keep it as is.
-            merged_list.append(group_hypotheses[0])
-        else:
-            # Multiple hypotheses in the group need to be merged.
-            
-            # Determine the representative base hypothesis for the filter.
-            # Here, we use the first hypothesis encountered in the group.
-            # An alternative could be to select the one with the highest likelihood
-            # *before* summing, i.e., representative_base = max(group_hypotheses, key=lambda h: h['likelihood'])
-            representative_base = group_hypotheses[0]
-            
-            # Create the new merged hypothesis.
-            merged_hyp = {
-                'mode_history': list(key),  # Convert key back to list for consistency
-                'likelihood': sum(h['likelihood'] for h in group_hypotheses),
-                # Crucially, create a copy of the filter from the representative base.
-                # This assumes 'filter.copy()' provides a deep/independent copy.
-                'filter': representative_base['filter'].copy()
-            }
-            merged_list.append(merged_hyp)
+        merged_list = []
+        for key, group_hypotheses in groups.items():
+            if len(group_hypotheses) == 1:
+                # If only one hypothesis in the group, keep it as is.
+                merged_list.append(group_hypotheses[0])
+            else:
+                representative_base = group_hypotheses[0]
+                
+                # Create the new merged hypothesis.
+                merged_hyp = {
+                    'mode_history': list(key),  # Convert key back to list for consistency
+                    'likelihood': sum(h['likelihood'] for h in group_hypotheses),
+                    'filter': representative_base['filter'].copy()
+                }
+                #update the filter state based on the likelihoods
+                merged_hyp['filter'].x = sum(h['likelihood'] * h['filter'].x for h in group_hypotheses) / sum(h['likelihood'] for h in group_hypotheses)
+                merged_hyp['filter'].P = sum(h['likelihood'] * h['filter'].P for h in group_hypotheses) / sum(h['likelihood'] for h in group_hypotheses)
+                merged_list.append(merged_hyp)
 
-    self.hypotheses = merged_list
+        self.hypotheses = merged_list
 
     def _prune_hypotheses(self):
         #remove hypotheses with likelihood less than epsilon
@@ -198,6 +195,12 @@ class M3H(IMM):
         #most likely mode
         self.most_likely_mode[idx] = np.argmax(mode_likelihoods)
 
+        #log merged covariance
+        merged_covariance = np.zeros((self.state_dim,self.state_dim))
+        for hypothesesis in self.hypotheses:
+            merged_covariance += hypothesesis['likelihood'] * (hypothesesis['filter'].P + (best_estimate - hypothesesis['filter'].x) @ (best_estimate - hypothesesis['filter'].x).T)
+        self.merged_covariance[idx] = merged_covariance
+
 
     def run(self):
         """Run the M3H filter."""
@@ -235,6 +238,25 @@ class M3H(IMM):
             if measurements_arr.ndim == 2 and measurements_arr.shape[1] >= 2:
                  ax1.scatter(measurements_arr[:, 0], measurements_arr[:, 1], c='gray', marker='.', label='Measurements', alpha=0.5)
             if self.best_estimate.ndim == 2 and self.best_estimate.shape[1] >= 2:
+                # Plot error ellipses for each point
+                for i in range(len(self.best_estimate)):
+                    # Get the 2x2 covariance matrix for position
+                    cov = self.merged_covariance[i][:2, :2]
+                    # Calculate eigenvalues and eigenvectors
+                    eigenvals, eigenvecs = np.linalg.eigh(cov)
+                    # Calculate angle of rotation
+                    angle = np.degrees(np.arctan2(eigenvecs[1, 0], eigenvecs[0, 0]))
+                    # Create ellipse with 95% confidence interval (2 sigma)
+                    ellipse = Ellipse(
+                        xy=self.best_estimate[i, :2],
+                        width=2 * np.sqrt(eigenvals[0]) * 2,
+                        height=2 * np.sqrt(eigenvals[1]) * 2,
+                        angle=angle,
+                        alpha=0.1,
+                        color='blue'
+                    )
+                    ax1.add_patch(ellipse)
+                
                 ax1.plot(self.best_estimate[:, 0], self.best_estimate[:, 1], 'r-', label='M3H Estimate')
 
             ax1.plot(self.true_trajectory[:, 0], self.true_trajectory[:, 1], label=f'true trajectory',color='green')
