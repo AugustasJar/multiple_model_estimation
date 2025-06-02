@@ -114,6 +114,7 @@ class GPB(IMM):
                 current_merged_cov_i = np.zeros((self.state_dim, self.state_dim))
                 for j in range(self.num_filters):
                     if mixing_weights[i, j] > 1e-12:
+                        
                         s_hat_ij = expanded_states[i, j, :]
                         P_ij = expanded_covariances[i, j, :, :]
                         s_hat_i = merged_state_estimates[i, :]

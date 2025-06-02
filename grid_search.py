@@ -2,14 +2,7 @@ import numpy as np
 from M3H_2 import M3H
 import itertools
 from tqdm import tqdm
-
-def calculate_rmse(estimated_trajectory, true_trajectory):
-    """Calculate Root Mean Square Error between estimated and true trajectory."""
-    return np.sqrt(np.mean(np.sum((estimated_trajectory - true_trajectory)**2, axis=1)))
-
-def calculate_mode_accuracy(estimated_modes, true_modes):
-    """Calculate accuracy of mode estimation."""
-    return np.mean(estimated_modes == true_modes)
+from utils import calculate_rmse, calculate_mode_accuracy
 
 def grid_search(F, H, Q, R, P_transition, measurements, true_trajectory, true_mode):
     # Define parameter ranges

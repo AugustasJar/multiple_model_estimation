@@ -4,7 +4,7 @@ from matplotlib.patches import Ellipse
 
 from IMM import IMM
 from kalman import KalmanFilter
-
+from utils import calculate_rmse, calculate_mode_accuracy
 
 class M3H(IMM):
     def __init__(self, F_list, H_list, Q_list, R_list, initial_state, P_transition, measurements, epsilon, L_merge, l_max, initial_mode_probabilities=None, true_trajectory=None, true_mode=None):
@@ -168,7 +168,7 @@ class M3H(IMM):
             hypothesesis['likelihood'] = measurement_likelihood_val*hypothesesis['likelihood']
             total_likelihood += hypothesesis['likelihood']
         
-        #normalize likelihoods, if total likelihood is too small, set all likelihoods to 1/num_modes
+        #normalize likelihoods
         for hypothesesis in self.hypotheses:
             hypothesesis['likelihood'] = hypothesesis['likelihood'] / total_likelihood
 
@@ -199,7 +199,6 @@ class M3H(IMM):
             merged_covariance += hypothesesis['likelihood'] * (hypothesesis['filter'].P + (best_estimate - hypothesesis['filter'].x) @ (best_estimate - hypothesesis['filter'].x).T)
         self.merged_covariance[idx] = merged_covariance
 
-
     def run(self):
         """Run the M3H filter."""
         #expand hypotheses
@@ -216,7 +215,12 @@ class M3H(IMM):
 
             self._log(idx)
 
-        
+    def get_avg_mode_count(self):
+        return np.mean(self.active_hypotheses)
+    
+    def get_mode_accuracy(self):
+        return np.mean(self.most_likely_mode == self.true_mode)
+    
     def plot_results(self):
         import matplotlib.pyplot as plt
         num_plots = 2
@@ -232,7 +236,6 @@ class M3H(IMM):
             ax1 = plt.subplot((num_plots + 1) // 2, 2, fig_idx)
             fig_idx += 1
             measurements_arr = np.array(self.measurements)
-            true_trajectory_arr = np.array(self.true_trajectory)
             if measurements_arr.ndim == 2 and measurements_arr.shape[1] >= 2:
                  ax1.scatter(measurements_arr[:, 0], measurements_arr[:, 1], c='gray', marker='.', label='Measurements', alpha=0.5)
             if self.best_estimate.ndim == 2 and self.best_estimate.shape[1] >= 2:
@@ -304,4 +307,12 @@ class M3H(IMM):
         ax4.grid(True)
         
         plt.tight_layout()
-        plt.show()
+        # plt.show()
+
+        #print RMSE and mode accuracy
+        rmse = calculate_rmse(self.best_estimate, self.true_trajectory)
+        mode_accuracy = calculate_mode_accuracy(self.most_likely_mode, self.true_mode)
+        average_hypothesis_count = np.mean(self.active_hypotheses)
+        print(f"RMSE: {rmse}")
+        print(f"Mode Accuracy: {mode_accuracy}")
+        print(f"Average Hypothesis Count: {average_hypothesis_count}")

@@ -145,57 +145,43 @@ class IMM:
         """
         return self.filtered_history
     
-
-    def plot_true_vs_estimated_mode(self, true_mode):
-        """
-        Plot the true mode versus the estimated mode with the highest probability as a line graph.
-
-        Parameters:
-        - true_mode: List of true modes at each time step.
-        """
-        estimated_modes = np.argmax(self.mu_history, axis=1)  # Get the index of the highest probability mode at each step
-        time_steps = range(len(true_mode))  # Time steps
-
-        plt.figure(figsize=(10, 6))
-        plt.plot(time_steps, true_mode, label='True Mode', linestyle='-', alpha=0.7)
-        plt.plot(time_steps, estimated_modes, label='Estimated Mode', linestyle='--', alpha=0.7)
-        plt.title('True Mode vs Estimated Mode')
-        plt.xlabel('Time Step')
-        plt.ylabel('Mode')
-        plt.legend()
-        plt.grid(True)
-        plt.tight_layout()
-
-
+    def get_rmse(self):
+        return np.sqrt(np.mean((self.best_estimate - self.true_trajectory) ** 2))
+    
+    def get_mode_accuracy(self):
+        mu_history_array = np.array(self.mu_history)
+        estimated_modes = np.argmax(mu_history_array, axis=1)
+        return np.mean(estimated_modes == self.true_mode)
+    
+    
     def plot_results(self):
         """
-        Plot the measurements as a scatter plot, add line graphs of the filtered states,
-        and include subplots for the absolute covariances of each filter.
-
-        Assumes measurements are a time series of (x, y) coordinates.
+        Plot all results in a single figure with four subplots:
+        1. Measurements and trajectories
+        2. Absolute covariances
+        3. Mode probabilities
+        4. True vs estimated mode
         """
         measurements = np.array(self.measurements)
         if measurements.shape[1] != 2:
             measurements = measurements[:, :2]  # Ensure we only take the first two columns (x, y)
 
-        # Create a figure with two subplots
-        fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+        # Create a figure with four subplots
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        axes = axes.flatten()  # Flatten for easier indexing
 
-        # Scatter plot of measurements and line graphs of filtered states
+        # Plot 1: Measurements and trajectories
         axes[0].scatter(measurements[:, 0], measurements[:, 1], c='blue', label='Measurements', marker='.', alpha=0.6)
-        num_filters = len(self.filters)
-        # for i in range(num_filters):
-        #     filter_states = self.filters[i].get_state_his()[:, :2]  # Get the first two dimensions (x, y) of the state history
-        #     axes[0].plot(filter_states[:, 0], filter_states[:, 1], label=f'Filter {i + 1}')
-        axes[0].plot(self.best_estimate[:, 0], self.best_estimate[:, 1], label=f'best estimate',color='red')
-        axes[0].plot(self.true_trajectory[:, 0], self.true_trajectory[:, 1], label=f'true trajectory',color='green')
-        axes[0].set_title('Scatter Plot of Measurements and Filtered States')
+        axes[0].plot(self.best_estimate[:, 0], self.best_estimate[:, 1], label='Best estimate', color='red')
+        axes[0].plot(self.true_trajectory[:, 0], self.true_trajectory[:, 1], label='True trajectory', color='green')
+        axes[0].set_title('Measurements and Trajectories')
         axes[0].set_xlabel('X Coordinate')
         axes[0].set_ylabel('Y Coordinate')
         axes[0].legend()
         axes[0].grid(True)
 
-        # Subplot for absolute covariances
+        # Plot 2: Absolute covariances
+        num_filters = len(self.filters)
         for i in range(num_filters):
             cov_trace = [np.trace(cov) for cov in self.filters[i].cov_history]
             axes[1].plot(cov_trace, label=f'Filter {i + 1}')
@@ -205,22 +191,29 @@ class IMM:
         axes[1].legend()
         axes[1].grid(True)
 
-
-        mu_history = np.array(self.mu_history)  # Convert to NumPy array for easier manipulation
-        time_steps = range(len(mu_history))  # Time steps
-        plt.figure(figsize=(10, 6))
+        # Plot 3: Mode probabilities
+        mu_history = np.array(self.mu_history)
+        time_steps = range(len(mu_history))
         for i in range(mu_history.shape[1]):
-            plt.plot(time_steps, mu_history[:, i], label=f'Mode {i + 1}')
-            
-        plt.title('Mode Probabilities Over Time')
-        plt.xlabel('Time Step')
-        plt.ylabel('Mode Probability')
-        plt.legend()
-        plt.grid(True)
+            axes[2].plot(time_steps, mu_history[:, i], label=f'Mode {i + 1}')
+        axes[2].set_title('Mode Probabilities Over Time')
+        axes[2].set_xlabel('Time Step')
+        axes[2].set_ylabel('Mode Probability')
+        axes[2].legend()
+        axes[2].grid(True)
+
+        # Plot 4: True vs estimated mode
+        estimated_modes = np.argmax(self.mu_history, axis=1)
+        time_steps = range(len(self.true_mode))
+        axes[3].plot(time_steps, self.true_mode, label='True Mode', linestyle='-', alpha=0.7)
+        axes[3].plot(time_steps, estimated_modes, label='Estimated Mode', linestyle='--', alpha=0.7)
+        axes[3].set_title('True Mode vs Estimated Mode')
+        axes[3].set_xlabel('Time Step')
+        axes[3].set_ylabel('Mode')
+        axes[3].legend()
+        axes[3].grid(True)
+
         plt.tight_layout()
-
-        self.plot_true_vs_estimated_mode(self.true_mode)
-
         # plt.show()
 
 def get_F_cv(dt):

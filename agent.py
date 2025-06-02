@@ -2,7 +2,7 @@ import numpy as np
 import random
 
 class Agent:
-    def __init__(self, initial_pos=(0,0), velocity=(0.1,0.2), angular_velocities=None, F=None,H =None, Q=None, p_mode=None):
+    def __init__(self, initial_pos=(0,0), velocity=(0.005,0.005), angular_velocities=None, F=None,H =None, Q=None, p_mode=None):
         self.state = np.array([initial_pos[0], initial_pos[1], velocity[0], velocity[1]])
         self.state_history = []
         self.measurements = []
