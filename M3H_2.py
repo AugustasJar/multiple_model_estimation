@@ -125,8 +125,17 @@ class M3H(IMM):
                     'filter': representative_base['filter'].copy()
                 }
                 #update the filter state based on the likelihoods
-                merged_hyp['filter'].x = sum(h['likelihood'] * h['filter'].x for h in group_hypotheses) / sum(h['likelihood'] for h in group_hypotheses)
-                merged_hyp['filter'].P = sum(h['likelihood'] * h['filter'].P for h in group_hypotheses) / sum(h['likelihood'] for h in group_hypotheses)
+                likelihood_normalization = sum(h['likelihood'] for h in group_hypotheses)
+                merged_hyp['filter'].x = sum(h['likelihood'] * h['filter'].x for h in group_hypotheses) / likelihood_normalization
+                # Calculate mean state for spread calculation
+                mean_state = sum(h['likelihood'] * h['filter'].x for h in group_hypotheses) / likelihood_normalization
+                
+                # Calculate spread of covariance matrices
+                spread_term = sum(h['likelihood'] * (h['filter'].P + 
+                    (h['filter'].x - mean_state) @ (h['filter'].x - mean_state).T) 
+                    for h in group_hypotheses) / likelihood_normalization
+                
+                merged_hyp['filter'].P = spread_term
                 merged_list.append(merged_hyp)
 
         self.hypotheses = merged_list
@@ -167,10 +176,14 @@ class M3H(IMM):
             # Update hypothesis likelihood
             hypothesesis['likelihood'] = measurement_likelihood_val*hypothesesis['likelihood']
             total_likelihood += hypothesesis['likelihood']
-        
-        #normalize likelihoods
-        for hypothesesis in self.hypotheses:
-            hypothesesis['likelihood'] = hypothesesis['likelihood'] / total_likelihood
+        if total_likelihood < 1e-16:
+            #if total likelihood is too small, set all likelihoods to 1/num_modes
+            for hypothesesis in self.hypotheses:
+                hypothesesis['likelihood'] = 1/self.num_modes
+        else:
+            #normalize likelihoods
+            for hypothesesis in self.hypotheses:
+                hypothesesis['likelihood'] = hypothesesis['likelihood'] / total_likelihood
 
     def _log(self,idx):
 
