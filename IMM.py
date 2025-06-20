@@ -44,6 +44,7 @@ class IMM:
         
         # Initialize tracking variables
         self.mu_history = []
+        self.predicted_modes = []
         self.best_estimate = np.zeros((len(self.measurements), self.state_dim))
         self.true_trajectory = true_trajectory
 
@@ -135,6 +136,8 @@ class IMM:
             # Update best estimate
             self.best_estimate[idx] = sum(self.mu[i] * np.array(self.filters[i].x).flatten() 
                                         for i in range(self.num_filters))
+            
+            self.predicted_modes.append(np.argmax(self.mu))
 
     def get_filtered_history(self):
         """
@@ -149,9 +152,9 @@ class IMM:
         return np.sqrt(np.mean((self.best_estimate - self.true_trajectory) ** 2))
     
     def get_mode_accuracy(self):
-        mu_history_array = np.array(self.mu_history)
-        estimated_modes = np.argmax(mu_history_array, axis=1)
-        return np.mean(estimated_modes == self.true_mode)
+        num_predictions = len(self.predicted_modes)
+        true_modes_truncated = self.true_mode[:num_predictions]
+        return np.mean(np.array(self.predicted_modes) == np.array(true_modes_truncated))
     
     
     def plot_results(self):
@@ -203,15 +206,81 @@ class IMM:
         axes[2].grid(True)
 
         # Plot 4: True vs estimated mode
-        estimated_modes = np.argmax(self.mu_history, axis=1)
-        time_steps = range(len(self.true_mode))
-        axes[3].plot(time_steps, self.true_mode, label='True Mode', linestyle='-', alpha=0.7)
-        axes[3].plot(time_steps, estimated_modes, label='Estimated Mode', linestyle='--', alpha=0.7)
+        num_predictions = len(self.predicted_modes)
+        time_steps = range(num_predictions)
+        axes[3].plot(time_steps, self.true_mode[:num_predictions], label='True Mode', linestyle='-', alpha=0.7)
+        axes[3].plot(time_steps, self.predicted_modes, label='Estimated Mode', linestyle='--', alpha=0.7)
         axes[3].set_title('True Mode vs Estimated Mode')
         axes[3].set_xlabel('Time Step')
         axes[3].set_ylabel('Mode')
         axes[3].legend()
         axes[3].grid(True)
+
+        plt.tight_layout()
+        # plt.show()
+
+    def plot_error(self):
+        """
+        Plot the squared error for each state dimension (x, y, vx, vy) with 
+        true and estimated modes in the background.
+        """
+        # Calculate error for each dimension
+        error = self.best_estimate - self.true_trajectory
+        
+        # Get estimated modes
+        estimated_modes = self.predicted_modes
+        
+        # State dimension labels
+        if self.state_dim == 4:
+            state_labels = ['Position X', 'Position Y', 'Velocity X', 'Velocity Y']
+        else:
+            state_labels = [f'State Dim {i+1}' for i in range(self.state_dim)]
+
+        # Create figure with subplots
+        fig, axes = plt.subplots(2, 2, figsize=(14, 10), sharex=True)
+        axes = axes.flatten()
+        
+        num_predictions = len(self.predicted_modes)
+        time_steps = range(num_predictions)
+        
+        num_plots = min(self.state_dim, 4)
+
+        for i in range(num_plots):
+            ax1 = axes[i]
+            
+            # Plot squared error on primary y-axis
+            squared_error = error[:num_predictions, i]**2
+            line1 = ax1.plot(time_steps, squared_error, 'r-', alpha=0.6, label=f'{state_labels[i]} Squared Error')
+            ax1.set_ylabel('Squared Error')
+            ax1.tick_params(axis='y')
+            ax1.grid(True, which='both', linestyle='--', linewidth=0.5)
+            
+            # Create secondary y-axis for modes
+            ax2 = ax1.twinx()
+            line2 = ax2.plot(time_steps, self.true_mode[:num_predictions], 'g-', label='True Mode', alpha=0.5)
+            line3 = ax2.plot(time_steps, estimated_modes, 'b--', label='Estimated Mode', alpha=0.5)
+            ax2.set_ylabel('Mode')
+            
+            # Set y-axis for modes to integer ticks
+            if num_predictions > 0:
+                max_mode = max(np.max(self.true_mode[:num_predictions]), np.max(estimated_modes))
+                ax2.set_ylim(-0.1, max_mode + 0.1)
+                ax2.set_yticks(np.arange(0, max_mode + 1, 1))
+
+            # Set title and legend
+            ax1.set_title(f'Error and Modes for {state_labels[i]}')
+            lines = line1 + line2 + line3
+            labels = [l.get_label() for l in lines]
+            ax1.legend(lines, labels, loc='upper right')
+
+        # Add x-axis label to bottom plots
+        for i in [2, 3]:
+            if i < num_plots:
+                axes[i].set_xlabel('Time Step')
+
+        # Hide unused subplots
+        for i in range(num_plots, len(axes)):
+            axes[i].set_visible(False)
 
         plt.tight_layout()
         # plt.show()

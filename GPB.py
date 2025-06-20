@@ -137,4 +137,5 @@ class GPB(IMM):
             
             self.best_estimate[idx] = current_best_estimate
             self.mu_history.append(self.mu.copy())
+            self.predicted_modes.append(np.argmax(self.mu))
 

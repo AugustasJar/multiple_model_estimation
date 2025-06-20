@@ -31,7 +31,7 @@ class M3H(IMM):
         self.active_hypotheses = np.zeros((len(measurements)))
         self.measurements = measurements
         self.true_trajectory = true_trajectory
-        self.most_likely_mode = np.zeros((len(measurements)))
+        self.predicted_modes = np.zeros((len(measurements)))
         self.true_mode = true_mode
         self.merged_covariance = np.zeros((len(measurements),self.state_dim,self.state_dim))
 
@@ -204,7 +204,7 @@ class M3H(IMM):
         self.active_hypotheses[idx] = len(self.hypotheses)
 
         #most likely mode
-        self.most_likely_mode[idx] = np.argmax(mode_likelihoods)
+        self.predicted_modes[idx] = np.argmax(mode_likelihoods)
 
         #log merged covariance
         merged_covariance = np.zeros((self.state_dim,self.state_dim))
@@ -232,7 +232,7 @@ class M3H(IMM):
         return np.mean(self.active_hypotheses)
     
     def get_mode_accuracy(self):
-        return np.mean(self.most_likely_mode == self.true_mode)
+        return np.mean(self.predicted_modes == self.true_mode)
     
     def plot_results(self):
         import matplotlib.pyplot as plt
@@ -307,11 +307,11 @@ class M3H(IMM):
 
         # Calculate norm of merged covariance and normalize to max mode value
         cov_norms = np.array([np.linalg.norm(cov) for cov in self.merged_covariance])
-        max_mode = max(np.max(self.true_mode), np.max(self.most_likely_mode))
+        max_mode = max(np.max(self.true_mode), np.max(self.predicted_modes))
         normalized_cov_norms = cov_norms / np.max(cov_norms) * max_mode
 
         ax4.plot(time_steps, self.true_mode, label='True Mode', linestyle='-', alpha=0.7)
-        ax4.plot(time_steps, self.most_likely_mode, label='Estimated Mode', linestyle='--', alpha=0.7)
+        ax4.plot(time_steps, self.predicted_modes, label='Estimated Mode', linestyle='--', alpha=0.7)
         ax4.plot(time_steps, normalized_cov_norms, label='Normalized Covariance Norm', linestyle='-', alpha=0.5,color='red')
         ax4.set_title('True Mode vs Estimated Mode')
         ax4.set_xlabel('Time Step')
@@ -324,7 +324,7 @@ class M3H(IMM):
 
         #print RMSE and mode accuracy
         rmse = calculate_rmse(self.best_estimate, self.true_trajectory)
-        mode_accuracy = calculate_mode_accuracy(self.most_likely_mode, self.true_mode)
+        mode_accuracy = calculate_mode_accuracy(self.predicted_modes, self.true_mode)
         average_hypothesis_count = np.mean(self.active_hypotheses)
         print(f"RMSE: {rmse}")
         print(f"Mode Accuracy: {mode_accuracy}")
